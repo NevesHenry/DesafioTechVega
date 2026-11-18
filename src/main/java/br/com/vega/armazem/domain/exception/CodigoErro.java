@@ -21,6 +21,12 @@ public enum CodigoErro {
     // Recurso inexistente (404)
     INGREDIENTE_NAO_ENCONTRADO,
     COMPARTIMENTO_NAO_ENCONTRADO,
+    RECURSO_NAO_ENCONTRADO,
+
+    // Protocolo HTTP (405, 406, 415)
+    METODO_NAO_SUPORTADO,
+    FORMATO_NAO_ACEITO,
+    TIPO_DE_CONTEUDO_NAO_SUPORTADO,
 
     // Concorrência / integridade (409)
     CONFLITO_DE_CONCORRENCIA,

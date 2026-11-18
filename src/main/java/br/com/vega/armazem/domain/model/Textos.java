@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 public final class Textos {
 
     private static final Pattern MARCAS_DIACRITICAS = Pattern.compile("\\p{M}+");
-    private static final Pattern ESPACOS = Pattern.compile("\\s+");
+    private static final Pattern ESPACOS = Pattern.compile("[\\s\\p{Z}]+");
 
     private Textos() {
     }
@@ -16,12 +16,14 @@ public final class Textos {
     /** Remove acentos, espaços extras e padroniza caixa: {@code "  Açúcar  Mascavo "} vira {@code "acucar mascavo"}. */
     public static String normalizar(String texto) {
         String semAcento = MARCAS_DIACRITICAS.matcher(Normalizer.normalize(texto, Normalizer.Form.NFD)).replaceAll("");
-        return ESPACOS.matcher(semAcento.strip()).replaceAll(" ").toLowerCase(Locale.ROOT);
+        // NFC recompõe o que o NFD decompôs e não era marca (ex.: sílabas coreanas), mantendo o tamanho original.
+        String recomposto = Normalizer.normalize(semAcento, Normalizer.Form.NFC);
+        return ESPACOS.matcher(recomposto).replaceAll(" ").strip().toLowerCase(Locale.ROOT);
     }
 
     /** Remove espaços nas pontas e colapsa espaços internos, preservando acentos e caixa. */
     public static String limpar(String texto) {
-        return ESPACOS.matcher(texto.strip()).replaceAll(" ");
+        return ESPACOS.matcher(texto).replaceAll(" ").strip();
     }
 
     /** Forma usada para comparar com nomes de constantes de enum: {@code "líquidos"} vira {@code "LIQUIDOS"}. */

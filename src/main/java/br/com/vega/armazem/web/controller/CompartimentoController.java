@@ -46,7 +46,7 @@ public class CompartimentoController {
     public List<CompartimentoResponse> disponiveisParaArmazenamento(
             @RequestParam
             @Positive(message = "deve ser maior que zero")
-            @Digits(integer = 9, fraction = 3, message = "deve ter no máximo 3 casas decimais")
+            @Digits(integer = 9, fraction = 3, message = "deve ter no máximo 9 dígitos inteiros e 3 casas decimais")
             BigDecimal quantidade,
             @RequestParam TipoIngrediente tipo) {
         return compartimentoService.disponiveisParaArmazenamento(tipo, quantidade);

@@ -28,7 +28,7 @@ public class HistoricoController {
 
     @GetMapping
     @Operation(summary = "Lista movimentações ordenadas por data e compartimento",
-            description = "sortBy define o critério principal (o outro vira desempate). order vale para ambos.")
+            description = "sortBy=date ordena pela ordem de gravação (a mais recente primeiro por padrão); sortBy=compartimento ordena por compartimento e, dentro dele, pela ordem de gravação. order vale para ambos.")
     public PagedModel<MovimentacaoResponse> listar(
             @Parameter(description = "date (padrão) ou compartimento")
             @RequestParam(defaultValue = "date") String sortBy,

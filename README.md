@@ -7,7 +7,7 @@ histórico obrigatório de movimentações, tratamento de concorrência e um fro
 | | |
 |---|---|
 | **Stack** | Java 21 · Spring Boot 4.1 (Spring MVC, Data JPA, Validation) · Hibernate 7 · H2 em memória · Flyway · springdoc-openapi (Swagger UI) |
-| **Testes** | JUnit 5 · AssertJ · Mockito · MockMvc (unitários, integração e concorrência) |
+| **Testes** | JUnit 6 · AssertJ · Mockito · MockMvc (unitários, integração e concorrência) |
 | **Frontend** | HTML + CSS + JavaScript puro, servido pela própria aplicação (sem build) |
 
 ---
@@ -41,6 +41,15 @@ Ou com Docker:
 docker build -t armazem-ingredientes .
 docker run --rm -p 8080:8080 armazem-ingredientes
 ```
+
+> A imagem sobe com o perfil Spring `docker` (`application-docker.yml`), que libera o Console H2 para
+> acesso pelo navegador do host. Dentro do container a requisição não chega como `localhost`, e sem
+> isso o console responderia "remote connections ('webAllowOthers') are disabled". Fora do Docker o
+> console continua restrito a `localhost`.
+>
+> O formulário de login do console já vem preenchido com `jdbc:h2:mem:armazem` (via
+> `docker/h2.server.properties`). Fora do Docker o H2 sugere `jdbc:h2:~/test`, que não é o banco da
+> aplicação: troque a **JDBC URL** para `jdbc:h2:mem:armazem` (usuário `sa`, senha vazia).
 
 ### Endereços (porta padrão 8080)
 
@@ -110,7 +119,6 @@ curl 'localhost:8080/historico?sortBy=compartimento&order=asc'
 
 ```json
 {
-  "type": "about:blank",
   "title": "Regra de negócio violada",
   "status": 400,
   "detail": "Capacidade excedida no compartimento C1: a capacidade máxima para SECO é 600 kg, já há 400 kg armazenados (espaço livre: 200 kg) e foram solicitados 400 kg.",
@@ -129,10 +137,14 @@ Erros de validação trazem também `"erros": [{"campo": "quantidade", "mensagem
 | 400 | `TROCA_DE_TIPO_BLOQUEADA` | O compartimento foi usado por outro tipo hoje (só aceita outro tipo amanhã) |
 | 400 | `ESTOQUE_INSUFICIENTE` | Saída maior que o saldo |
 | 400 | `COMPARTIMENTO_INEXISTENTE` | `compartimentoId` do corpo não existe |
-| 400 | `VALIDACAO` / `REQUISICAO_INVALIDA` / `PARAMETRO_INVALIDO` / `QUANTIDADE_INVALIDA` | Campos inválidos, JSON malformado, enum ou parâmetro inválido |
+| 400 | `VALIDACAO` / `REQUISICAO_INVALIDA` / `PARAMETRO_INVALIDO` / `QUANTIDADE_INVALIDA` | Campos inválidos, JSON malformado, enum ou parâmetro inválido, `page` × `size` acima do limite do histórico |
 | 404 | `INGREDIENTE_NAO_ENCONTRADO` / `COMPARTIMENTO_NAO_ENCONTRADO` | Id da URL não existe |
+| 404 | `RECURSO_NAO_ENCONTRADO` | Rota inexistente |
+| 405 | `METODO_NAO_SUPORTADO` | Método HTTP não permitido no recurso |
+| 406 | `FORMATO_NAO_ACEITO` | `Accept` pede um formato que a API não gera (só JSON) |
 | 409 | `CONFLITO_DE_CONCORRENCIA` | Timeout de lock ou conflito de versão (o cliente pode repetir) |
 | 409 | `VIOLACAO_DE_INTEGRIDADE` | Restrição do banco violada (ex.: registro duplicado), segunda barreira atrás das regras do domínio |
+| 415 | `TIPO_DE_CONTEUDO_NAO_SUPORTADO` | `Content-Type` do corpo diferente de `application/json` |
 | 500 | `ERRO_INTERNO` | Erro inesperado (detalhe só no log) |
 
 ---
@@ -170,13 +182,34 @@ Erros de validação trazem também `"erros": [{"campo": "quantidade", "mensagem
   Os dois casos geram uma ENTRADA no histórico.
 - **D4. Endpoint de saída.** O enunciado pede "movimentação" e "compartimentos disponíveis para
   retirada/venda", mas não define a rota da saída. Criei `POST /ingredientes/{id}/saidas` e, por simetria,
-  `POST /ingredientes/{id}/entradas` para reposição.
+  `POST /ingredientes/{id}/entradas` para reposição. Só as operações que alteram estoque usam `POST`; as
+  consultas são `GET`. A saída é `POST`, e não `DELETE`, por quatro motivos:
+  - **Saída não apaga, diminui.** `DELETE` significa "este recurso deixa de existir". Uma saída de 10 kg num
+    estoque de 100 kg só baixa o saldo para 90 kg. Com saldo zero o ingrediente continua cadastrado (por isso
+    existe o filtro `comEstoque=true`).
+  - **Cada saída cria um registro novo:** uma movimentação `SAIDA` no histórico. Criar recurso é papel do
+    `POST`; a rota se lê como "crie uma nova saída para o ingrediente {id}". É como um saque no banco: não
+    fecha a conta, vira uma nova linha no extrato.
+  - **`DELETE` é idempotente; a saída não.** Repetir um `DELETE` tem o mesmo efeito de enviá-lo uma vez. Duas
+    saídas de 10 kg tiram 20 kg. O `POST` é o método que não promete idempotência.
+  - **A saída precisa de corpo** (`quantidade`, `responsavel`), e o HTTP não define semântica para corpo em
+    `DELETE`; proxies e clientes podem descartá-lo.
+
+  Também descartei `PUT`/`PATCH` com o novo saldo (`{"quantidade": 90}`): o cliente teria que calcular o
+  saldo, e duas vendas simultâneas sobrescreveriam uma à outra. Com o `POST`, a subtração acontece no
+  servidor, com o compartimento travado (seção 5.1). Além disso, "agora é 90" não diz se foi uma saída ou uma
+  correção, e o histórico precisa dessa informação. Um `DELETE /ingredientes/{id}` só faria sentido para
+  remover um cadastro feito por engano, o que o enunciado não pede. Como esses `POST` não são idempotentes, uma
+  retentativa do cliente pode duplicar a operação; a seção 8 traz a chave de idempotência como evolução.
 - **D5. `compartimentoId` inexistente no corpo** responde `400`, não `404`: a URL (`/ingredientes`) existe;
   o problema é um dado inválido na requisição. `404` fica para ids na própria URL.
-- **D6. Histórico.** `sortBy` define o critério principal e o outro vira desempate (`date` → data,
-  compartimento, id; `compartimento` → compartimento, data, id). `order` vale para todos. Padrão: `date desc`
+- **D6. Histórico.** `date` ordena pela **ordem de gravação** (o `id` da movimentação), não pelo horário
+  gravado: o relógio do sistema pode voltar (NTP, VM, WSL) e inverter operações que aconteceram em
+  sequência, deixando uma saída "mais antiga" que a entrada que a precede. `compartimento` ordena por
+  compartimento e, dentro dele, pela ordem de gravação. `order` vale para ambos. Padrão: `date desc`
   (mais recentes primeiro). Como o histórico só cresce, a resposta é **paginada** (`page`, `size`, máx. 500)
-  no formato padrão do Spring Data (`content` + `page`).
+  no formato padrão do Spring Data (`content` + `page`). Se `page` × `size` passa de 2.147.483.647, a
+  resposta é `400` (`PARAMETRO_INVALIDO`).
 - **D7. Quantidades** são `BigDecimal` com 3 casas (gramas/mililitros), sem erro de ponto flutuante. Mais de
   3 casas decimais é rejeitado.
 - **D8. Volume por tipo** mantém exatamente o contrato do enunciado (`type`, `totalQuantity`) e sempre
@@ -267,8 +300,8 @@ do controle de concorrência.
 - Um teste de consistência garante que essa consulta e a regra do domínio (`Compartimento.podeReceber`)
   dão sempre o mesmo resultado.
 - `GET /ingredientes/volume` agrega os 5 saldos dos compartimentos, não a tabela de ingredientes.
-- O histórico é paginado e indexado (`data_hora`, `compartimento_id + data_hora`). Listagens usam
-  `join fetch` ou a FK direta, sem N+1.
+- O histórico é paginado e ordenado pela chave primária `id` (decisão D6); o filtro por compartimento usa o
+  índice `compartimento_id + data_hora`. Listagens usam `join fetch` ou a FK direta, sem N+1.
 
 ---
 
@@ -282,11 +315,12 @@ do controle de concorrência.
 |---|---|---|
 | Unitário (domínio) | `CompartimentoTest`, `MovimentacaoTest`, `TipoIngredienteTest` | Capacidade por tipo (limites exatos), mistura de tipos, troca de tipo no dia seguinte, estoque insuficiente, ausência de alteração parcial, leitura tolerante de enums |
 | Unitário (serviço) | `EstoqueServiceTest`, `OrdenacaoHistoricoTest` | Fluxo de cadastro/entrada/saída com mocks, uso obrigatório do lock, ordenação do histórico |
-| Integração (API) | `IngredienteApiTest`, `CompartimentoApiTest`, `HistoricoApiTest` | Todos os endpoints via MockMvc: status, corpo, `Location`, erros RFC 9457, virada do dia |
+| Integração (API) | `IngredienteApiTest`, `CompartimentoApiTest`, `HistoricoApiTest` | Todos os endpoints via MockMvc: status, corpo, `Location`, erros RFC 9457, virada do dia, relógio que volta no tempo |
+| Integração (bordas) | `BordasDaApiTest` | Erros do próprio Spring (404 de rota, 405, 406, 415) com `codigo`, paginação extrema, id fracionário, espaço não separável e nomes não latinos |
 | Integração (garantias) | `HistoricoObrigatorioTest`, `DisponibilidadeConsistenciaTest` | Rollback quando o histórico falha; consulta de disponibilidade = regra do domínio |
 | Concorrência | `ConcorrenciaEstoqueTest` | Seção 5.1 |
 
-São **315 testes** e a suíte completa roda em cerca de 10 segundos. Os testes de integração usam o contexto Spring completo, H2 com as migrações Flyway e um relógio
+São **332 testes** e a suíte completa roda em cerca de 11 segundos. Os testes de integração usam o contexto Spring completo, H2 com as migrações Flyway e um relógio
 controlável (`RelogioAjustavel`). Eles **não** usam `@Transactional`, para exercitar commit e lock reais.
 
 ---

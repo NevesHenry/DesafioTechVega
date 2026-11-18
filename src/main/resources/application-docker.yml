@@ -1,0 +1,9 @@
+# Perfil ativado pela imagem Docker (ENV SPRING_PROFILES_ACTIVE=docker no Dockerfile).
+spring:
+  h2:
+    console:
+      settings:
+        # Dentro do container a requisição do navegador chega pelo gateway da rede Docker e não
+        # como "localhost"; sem isto o console H2 responde "remote connections are disabled".
+        # Não vai no application.yml para não expor o console fora do Docker.
+        web-allow-others: true

@@ -7,8 +7,12 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Ordenação do histórico. O critério principal vem de {@code sortBy}. O outro critério vira desempate, e o id
- * garante ordem estável entre movimentações do mesmo instante.
+ * Ordenação do histórico.
+ *
+ * <p>{@code date} ordena pela <b>ordem de gravação</b> (o id da movimentação, que só cresce) e não pelo horário
+ * gravado. O relógio do sistema pode ser ajustado para trás (NTP, VM, WSL) e inverter a ordem de operações
+ * que aconteceram em sequência. O horário continua sendo gravado e exibido, mas não decide quem é o mais
+ * recente. {@code compartimento} ordena por compartimento e, dentro dele, pela ordem de gravação.</p>
  */
 public record OrdenacaoHistorico(Campo campo, Sort.Direction direcao) {
 
@@ -28,10 +32,8 @@ public record OrdenacaoHistorico(Campo campo, Sort.Direction direcao) {
     }
 
     public Sort toSort() {
-        Sort data = Sort.by(direcao, "dataHora");
-        Sort compartimento = Sort.by(direcao, "compartimento.id");
-        Sort principal = campo == Campo.DATA ? data.and(compartimento) : compartimento.and(data);
-        return principal.and(Sort.by(direcao, "id"));
+        Sort gravacao = Sort.by(direcao, "id");
+        return campo == Campo.DATA ? gravacao : Sort.by(direcao, "compartimento.id").and(gravacao);
     }
 
     private static Campo campo(String sortBy) {

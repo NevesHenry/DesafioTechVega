@@ -61,20 +61,17 @@ class OrdenacaoHistoricoTest {
                 .hasMessageContaining("asc, desc");
     }
 
-    @ParameterizedTest(name = "date {0}: dataHora, compartimento.id, id")
+    @ParameterizedTest(name = "date {0}: só id (ordem de gravação, imune a ajuste de relógio)")
     @ValueSource(strings = {"asc", "desc"})
     void toSortPorData(String order) {
         Sort.Direction direcao = Sort.Direction.fromString(order);
 
         Sort sort = OrdenacaoHistorico.de("date", order).toSort();
 
-        assertThat(sort.toList()).containsExactly(
-                new Sort.Order(direcao, "dataHora"),
-                new Sort.Order(direcao, "compartimento.id"),
-                new Sort.Order(direcao, "id"));
+        assertThat(sort.toList()).containsExactly(new Sort.Order(direcao, "id"));
     }
 
-    @ParameterizedTest(name = "compartimento {0}: compartimento.id, dataHora, id")
+    @ParameterizedTest(name = "compartimento {0}: compartimento.id, id")
     @ValueSource(strings = {"asc", "desc"})
     void toSortPorCompartimento(String order) {
         Sort.Direction direcao = Sort.Direction.fromString(order);
@@ -83,14 +80,12 @@ class OrdenacaoHistoricoTest {
 
         assertThat(sort.toList()).containsExactly(
                 new Sort.Order(direcao, "compartimento.id"),
-                new Sort.Order(direcao, "dataHora"),
                 new Sort.Order(direcao, "id"));
     }
 
     @Test
-    @DisplayName("a ordenação padrão é dataHora desc, compartimento.id desc, id desc")
+    @DisplayName("a ordenação padrão é id desc (gravação mais recente primeiro)")
     void toSortPadrao() {
-        assertThat(OrdenacaoHistorico.de(null, null).toSort().toList()).containsExactly(
-                Sort.Order.desc("dataHora"), Sort.Order.desc("compartimento.id"), Sort.Order.desc("id"));
+        assertThat(OrdenacaoHistorico.de(null, null).toSort().toList()).containsExactly(Sort.Order.desc("id"));
     }
 }

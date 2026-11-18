@@ -157,18 +157,32 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * Garante {@code timestamp} também nas respostas montadas pelo próprio Spring (405, 415, 404 de rota...).
-     * Os textos dessas respostas estão traduzidos em {@code messages.properties}.
+     * Garante {@code codigo} e {@code timestamp} também nas respostas montadas pelo próprio Spring
+     * (405, 406, 415, 404 de rota...). Os textos dessas respostas estão traduzidos em {@code messages.properties}.
      */
     @Override
     protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body, HttpHeaders headers,
                                                              HttpStatusCode statusCode, WebRequest request) {
         ResponseEntity<Object> resposta = super.handleExceptionInternal(ex, body, headers, statusCode, request);
-        if (resposta != null && resposta.getBody() instanceof ProblemDetail problema
-                && (problema.getProperties() == null || !problema.getProperties().containsKey("timestamp"))) {
-            problema.setProperty("timestamp", OffsetDateTime.now(clock));
+        if (resposta != null && resposta.getBody() instanceof ProblemDetail problema) {
+            if (problema.getProperties() == null || !problema.getProperties().containsKey("codigo")) {
+                problema.setProperty("codigo", codigoPorStatus(resposta.getStatusCode()).name());
+            }
+            if (problema.getProperties() == null || !problema.getProperties().containsKey("timestamp")) {
+                problema.setProperty("timestamp", OffsetDateTime.now(clock));
+            }
         }
         return resposta;
+    }
+
+    private static CodigoErro codigoPorStatus(HttpStatusCode status) {
+        return switch (status.value()) {
+            case 404 -> CodigoErro.RECURSO_NAO_ENCONTRADO;
+            case 405 -> CodigoErro.METODO_NAO_SUPORTADO;
+            case 406 -> CodigoErro.FORMATO_NAO_ACEITO;
+            case 415 -> CodigoErro.TIPO_DE_CONTEUDO_NAO_SUPORTADO;
+            default -> status.is5xxServerError() ? CodigoErro.ERRO_INTERNO : CodigoErro.REQUISICAO_INVALIDA;
+        };
     }
 
     // ------------------------------------------------------------------ utilitários

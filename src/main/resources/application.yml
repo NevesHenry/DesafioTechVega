@@ -29,6 +29,11 @@ spring:
     problemdetails:
       enabled: true
 
+  jackson:
+    deserialization:
+      # Rejeita 3.9 onde se espera inteiro (ex.: compartimentoId), em vez de truncar para 3.
+      accept-float-as-int: false
+
 armazem:
   # Fuso usado para datar movimentações e para a regra de troca de tipo ("hoje" / "amanhã").
   fuso-horario: America/Sao_Paulo

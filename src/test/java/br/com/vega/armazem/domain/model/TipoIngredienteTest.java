@@ -114,6 +114,19 @@ class TipoIngredienteTest {
         void limpar() {
             assertThat(Textos.limpar("  Açúcar   Refinado ")).isEqualTo("Açúcar Refinado");
         }
+
+        @ParameterizedTest(name = "\"{0}\" -> \"{1}\"")
+        @CsvSource(delimiter = '|', value = {"Sal\u00a0Grosso|sal grosso", "\u00a0Sal\u00a0|sal", "가나|가나", "Açúcar|acucar"})
+        void espacosNaoSeparaveisEScriptsNaoLatinos(String entrada, String esperado) {
+            assertThat(Textos.normalizar(entrada)).isEqualTo(esperado);
+        }
+
+        @Test
+        @DisplayName("Textos.limpar colapsa espaços internos, inclusive quebras de linha e NBSP")
+        void limparColapsaEspacos() {
+            assertThat(Textos.limpar("a  b")).isEqualTo("a b");
+            assertThat(Textos.limpar("a\n\r b\u00a0c")).isEqualTo("a b c");
+        }
     }
 
     @Test

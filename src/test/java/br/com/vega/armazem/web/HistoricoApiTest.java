@@ -145,44 +145,43 @@ class HistoricoApiTest extends TesteIntegracaoBase {
         }
 
         @Test
-        @DisplayName("padrão: data decrescente (desempate por compartimento e id decrescentes)")
+        @DisplayName("padrão: gravação mais recente primeiro (E, D, C, B, A)")
         void padrao() throws Exception {
-            // 10:10 em C2 (C), depois C1 pelos ids E, D; 10:05 B; 10:00 A
-            assertThat(ordem("")).containsExactlyElementsOf(ids(2, 4, 3, 1, 0));
-            assertThat(ordem("?sortBy=date&order=desc")).containsExactlyElementsOf(ids(2, 4, 3, 1, 0));
+            assertThat(ordem("")).containsExactlyElementsOf(ids(4, 3, 2, 1, 0));
+            assertThat(ordem("?sortBy=date&order=desc")).containsExactlyElementsOf(ids(4, 3, 2, 1, 0));
         }
 
         @Test
-        @DisplayName("sortBy=date&order=asc")
+        @DisplayName("sortBy=date&order=asc: ordem de gravação (A, B, C, D, E)")
         void dataCrescente() throws Exception {
-            assertThat(ordem("?sortBy=date&order=asc")).containsExactlyElementsOf(ids(0, 1, 3, 4, 2));
+            assertThat(ordem("?sortBy=date&order=asc")).containsExactlyElementsOf(ids(0, 1, 2, 3, 4));
         }
 
         @Test
-        @DisplayName("sortBy=compartimento&order=asc: por compartimento, desempate por data crescente")
+        @DisplayName("sortBy=compartimento&order=asc: por compartimento, depois ordem de gravação crescente")
         void compartimentoCrescente() throws Exception {
-            // C1: B 10:05, D, E (10:10, id); C2: A 10:00, C 10:10
+            // C1: B, D, E; C2: A, C
             assertThat(ordem("?sortBy=compartimento&order=asc")).containsExactlyElementsOf(ids(1, 3, 4, 0, 2));
         }
 
         @Test
-        @DisplayName("sortBy=compartimento&order=desc: por compartimento, desempate por data decrescente")
+        @DisplayName("sortBy=compartimento&order=desc: por compartimento, depois ordem de gravação decrescente")
         void compartimentoDecrescente() throws Exception {
-            // C2: C 10:10, A 10:00; C1: E, D (10:10, id desc), B 10:05
+            // C2: C, A; C1: E, D, B
             assertThat(ordem("?sortBy=compartimento&order=desc")).containsExactlyElementsOf(ids(2, 0, 4, 3, 1));
         }
 
         @Test
         @DisplayName("sortBy e order aceitam variações de caixa e apelidos")
         void apelidos() throws Exception {
-            assertThat(ordem("?sortBy=DATA&order=ASC")).containsExactlyElementsOf(ids(0, 1, 3, 4, 2));
+            assertThat(ordem("?sortBy=DATA&order=ASC")).containsExactlyElementsOf(ids(0, 1, 2, 3, 4));
             assertThat(ordem("?sortBy=Compartimento&order=Asc")).containsExactlyElementsOf(ids(1, 3, 4, 0, 2));
         }
 
         @Test
         @DisplayName("somente order informado mantém sortBy=date")
         void apenasOrder() throws Exception {
-            assertThat(ordem("?order=asc")).containsExactlyElementsOf(ids(0, 1, 3, 4, 2));
+            assertThat(ordem("?order=asc")).containsExactlyElementsOf(ids(0, 1, 2, 3, 4));
         }
 
         @Test
@@ -197,6 +196,31 @@ class HistoricoApiTest extends TesteIntegracaoBase {
             assertThat(ordem("?compartimentoId=1&sortBy=date&order=desc")).containsExactlyElementsOf(ids(4, 3, 1));
             assertThat(ordem("?tipoOperacao=ENTRADA&sortBy=compartimento&order=asc"))
                     .containsExactlyElementsOf(ids(1, 3, 4, 0));
+        }
+    }
+
+    @Nested
+    @DisplayName("Relógio do sistema que volta no tempo")
+    class RelogioQueVolta {
+
+        @Test
+        @DisplayName("a saída gravada depois é a mais recente, mesmo com horário menor que o da entrada")
+        void ordemVemDaGravacao() throws Exception {
+            relogio.ajustar(hora(10, 4));
+            api.cadastrar("Agua", "LIQUIDO", "200", 2, "henrique").andExpect(status().isCreated());
+            long agua = jdbc.queryForObject("SELECT MAX(id) FROM ingrediente", Long.class);
+            relogio.ajustar(hora(10, 2)); // o relógio recuou 2 minutos entre as duas operações
+            api.saida(agua, "50", "henrique").andExpect(status().isOk());
+
+            api.consultar("/historico")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].tipoOperacao", is("SAIDA")))
+                    .andExpect(jsonPath("$.content[0].dataHora", is("2026-11-17T10:02:00")))
+                    .andExpect(jsonPath("$.content[1].tipoOperacao", is("ENTRADA")))
+                    .andExpect(jsonPath("$.content[1].dataHora", is("2026-11-17T10:04:00")));
+            api.consultar("/historico?sortBy=date&order=asc")
+                    .andExpect(jsonPath("$.content[0].tipoOperacao", is("ENTRADA")))
+                    .andExpect(jsonPath("$.content[1].tipoOperacao", is("SAIDA")));
         }
     }
 
@@ -232,8 +256,8 @@ class HistoricoApiTest extends TesteIntegracaoBase {
                     .andExpect(jsonPath("$.page.totalElements", is(5)))
                     .andExpect(jsonPath("$.page.totalPages", is(3)));
             assertThat(ordem("?sortBy=date&order=asc&page=0&size=2")).containsExactlyElementsOf(ids(0, 1));
-            assertThat(ordem("?sortBy=date&order=asc&page=1&size=2")).containsExactlyElementsOf(ids(3, 4));
-            assertThat(ordem("?sortBy=date&order=asc&page=2&size=2")).containsExactlyElementsOf(ids(2));
+            assertThat(ordem("?sortBy=date&order=asc&page=1&size=2")).containsExactlyElementsOf(ids(2, 3));
+            assertThat(ordem("?sortBy=date&order=asc&page=2&size=2")).containsExactlyElementsOf(ids(4));
             api.consultar("/historico?sortBy=date&order=asc&page=2&size=2")
                     .andExpect(jsonPath("$.page.number", is(2)))
                     .andExpect(jsonPath("$.content", hasSize(1)));
