@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Armazém de Ingredientes</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script defer src="js/app.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="container header-inner">
+      <h1>Armazém de Ingredientes</h1>
+      <nav class="header-links" aria-label="Links úteis">
+        <a href="/swagger-ui.html" target="_blank" rel="noopener">API (Swagger)</a>
+        <a href="/h2-console" target="_blank" rel="noopener">H2 Console</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- 2. Dashboard de compartimentos -->
+    <section class="panel" aria-labelledby="t-comp">
+      <div class="panel-head">
+        <h2 id="t-comp">Compartimentos</h2>
+        <span class="hint">Clique em um compartimento para filtrar a tabela de ingredientes.</span>
+      </div>
+      <div id="compartimentos" class="cards" aria-live="polite"></div>
+    </section>
+
+    <!-- 3. Volume por tipo -->
+    <section class="panel" aria-labelledby="t-vol">
+      <div class="panel-head"><h2 id="t-vol">Volume total por tipo</h2></div>
+      <div id="volume" class="tiles" aria-live="polite"></div>
+    </section>
+
+    <!-- 4. Formulário -->
+    <section class="panel" aria-labelledby="t-form">
+      <div class="panel-head"><h2 id="t-form">Cadastrar ingrediente / entrada</h2></div>
+      <form id="form-ingrediente" class="form-grid" novalidate>
+        <label class="field">
+          <span>Nome</span>
+          <input type="text" id="f-nome" name="nome" maxlength="120" required autocomplete="off" placeholder="Ex.: Farinha de Trigo">
+        </label>
+        <label class="field">
+          <span>Tipo</span>
+          <select id="f-tipo" name="tipo" required>
+            <option value="SECO">Secos</option>
+            <option value="LIQUIDO">Líquidos</option>
+            <option value="REFRIGERADO">Refrigerados</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Quantidade</span>
+          <input type="number" id="f-quantidade" name="quantidade" step="0.001" min="0.001" required inputmode="decimal" placeholder="0,000">
+        </label>
+        <label class="field">
+          <span>Compartimento</span>
+          <select id="f-compartimento" name="compartimentoId" required></select>
+        </label>
+        <label class="field">
+          <span>Responsável</span>
+          <input type="text" id="f-responsavel" name="responsavel" maxlength="100" required autocomplete="off" placeholder="Ex.: pedro">
+        </label>
+        <div class="form-actions">
+          <button type="button" id="btn-sugerir" class="btn btn-secondary">Sugerir compartimentos</button>
+          <button type="submit" id="btn-cadastrar" class="btn btn-primary">Cadastrar</button>
+        </div>
+      </form>
+      <div id="sugestoes" class="suggestions" aria-live="polite"></div>
+    </section>
+
+    <!-- 5. Tabela de ingredientes -->
+    <section class="panel" aria-labelledby="t-ing">
+      <div class="panel-head"><h2 id="t-ing">Ingredientes</h2></div>
+      <div class="filters">
+        <label class="field">
+          <span>Tipo</span>
+          <select id="i-tipo">
+            <option value="">Todos</option>
+            <option value="SECO">Secos</option>
+            <option value="LIQUIDO">Líquidos</option>
+            <option value="REFRIGERADO">Refrigerados</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Compartimento</span>
+          <select id="i-compartimento"></select>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="i-estoque" checked>
+          <span>Somente com estoque</span>
+        </label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th><th>Tipo</th><th class="num">Quantidade</th><th>Compartimento</th><th>Atualizado em</th><th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-ingredientes"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6. Disponíveis para retirada/venda -->
+    <section class="panel" aria-labelledby="t-venda">
+      <div class="panel-head"><h2 id="t-venda">Disponíveis para retirada/venda</h2></div>
+      <div class="filters">
+        <label class="field">
+          <span>Tipo</span>
+          <select id="v-tipo">
+            <option value="">Selecione um tipo…</option>
+            <option value="SECO">Secos</option>
+            <option value="LIQUIDO">Líquidos</option>
+            <option value="REFRIGERADO">Refrigerados</option>
+          </select>
+        </label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Compartimento</th><th>Tipo</th><th class="num">Quantidade disponível</th></tr>
+          </thead>
+          <tbody id="tbody-venda"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 7. Histórico -->
+    <section class="panel" aria-labelledby="t-hist">
+      <div class="panel-head"><h2 id="t-hist">Histórico de movimentações</h2></div>
+      <div class="filters">
+        <label class="field">
+          <span>Ordenar por</span>
+          <select id="h-sortBy">
+            <option value="date">Data</option>
+            <option value="compartimento">Compartimento</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Ordem</span>
+          <select id="h-order">
+            <option value="desc">Mais recentes primeiro</option>
+            <option value="asc">Mais antigos primeiro</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Operação</span>
+          <select id="h-operacao">
+            <option value="">Todas</option>
+            <option value="ENTRADA">Entrada</option>
+            <option value="SAIDA">Saída</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Compartimento</span>
+          <select id="h-compartimento"></select>
+        </label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data/hora</th><th>Operação</th><th>Ingrediente</th><th>Tipo</th><th class="num">Quantidade</th><th>Compartimento</th><th class="num">Saldo do compartimento</th><th>Responsável</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-historico"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button type="button" id="h-prev" class="btn btn-secondary">Anterior</button>
+        <span id="h-pagina" aria-live="polite">Página 1 de 1</span>
+        <button type="button" id="h-next" class="btn btn-secondary">Próxima</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Diálogo de entrada/saída -->
+  <dialog id="dlg-mov" aria-labelledby="dlg-titulo">
+    <form id="form-mov" novalidate>
+      <h3 id="dlg-titulo"></h3>
+      <p id="dlg-info" class="hint"></p>
+      <label class="field">
+        <span id="dlg-qtd-label">Quantidade</span>
+        <input type="number" id="m-quantidade" step="0.001" min="0.001" required inputmode="decimal">
+      </label>
+      <label class="field">
+        <span>Responsável</span>
+        <input type="text" id="m-responsavel" maxlength="100" required autocomplete="off">
+      </label>
+      <p id="dlg-erro" class="dlg-erro" role="alert" hidden></p>
+      <div class="dlg-actions">
+        <button type="button" id="m-cancelar" class="btn btn-secondary">Cancelar</button>
+        <button type="submit" id="m-confirmar" class="btn btn-primary">Confirmar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+</body>
+</html>

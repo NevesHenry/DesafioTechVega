@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: armazem-ingredientes
+
+  datasource:
+    # Banco em memória. LOCK_TIMEOUT (ms) define quanto uma transação espera pelo lock
+    # pessimista de um compartimento antes de falhar (respondido como 409 pela API).
+    url: jdbc:h2:mem:armazem;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000
+    username: sa
+    password:
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # o schema é responsabilidade do Flyway
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    locations: classpath:db/migration
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  mvc:
+    problemdetails:
+      enabled: true
+
+armazem:
+  # Fuso usado para datar movimentações e para a regra de troca de tipo ("hoje" / "amanhã").
+  fuso-horario: America/Sao_Paulo
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    br.com.vega.armazem: INFO
